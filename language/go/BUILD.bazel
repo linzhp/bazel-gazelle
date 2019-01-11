@@ -51,6 +51,7 @@ go_library(
         "//label:go_default_library",
         "//language:go_default_library",
         "//language/proto:go_default_library",
+        "//language/thrift:go_default_library",
         "//pathtools:go_default_library",
         "//repo:go_default_library",
         "//resolve:go_default_library",

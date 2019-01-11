@@ -48,6 +48,9 @@ type Repo struct {
 	// VCS is the version control system used to check out the repository.
 	// May also be "http" for HTTP archives.
 	VCS string
+
+	URLs        []string
+	StripPrefix string
 }
 
 type byName []Repo
@@ -119,6 +122,13 @@ func GenerateRule(repo Repo) *rule.Rule {
 	}
 	if repo.VCS != "" {
 		r.SetAttr("vcs", repo.VCS)
+	}
+	if repo.URLs != nil {
+		r.SetAttr("urls", repo.URLs)
+		r.SetAttr("type", "zip")
+	}
+	if repo.StripPrefix != "" {
+		r.SetAttr("strip_prefix", repo.StripPrefix)
 	}
 	return r
 }

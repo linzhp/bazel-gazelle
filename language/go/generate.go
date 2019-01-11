@@ -28,6 +28,7 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/language"
 	"github.com/bazelbuild/bazel-gazelle/language/proto"
+	"github.com/bazelbuild/bazel-gazelle/language/thrift"
 	"github.com/bazelbuild/bazel-gazelle/pathtools"
 	"github.com/bazelbuild/bazel-gazelle/rule"
 )
@@ -38,25 +39,39 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 	c := args.Config
 	gc := getGoConfig(c)
 	pcMode := getProtoMode(c)
+	tcMode := getThriftMode(c)
 	var protoRuleNames []string
+	var thriftRuleNames []string
 	protoPackages := make(map[string]proto.Package)
 	protoFileInfo := make(map[string]proto.FileInfo)
+	thriftFileInfo := make(map[string]thrift.FileInfo)
 	for _, r := range args.OtherGen {
-		if r.Kind() != "proto_library" {
+		switch r.Kind() {
+		case "proto_library":
+			pkg := r.PrivateAttr(proto.PackageKey).(proto.Package)
+			protoPackages[r.Name()] = pkg
+			for name, info := range pkg.Files {
+				protoFileInfo[name] = info
+			}
+			protoRuleNames = append(protoRuleNames, r.Name())
+		case "thrift_library":
+			thriftFileInfo[r.Name()] = r.PrivateAttr(thrift.FileInfoKey).(thrift.FileInfo)
+			thriftRuleNames = append(thriftRuleNames, r.Name())
+		default:
 			continue
 		}
-		pkg := r.PrivateAttr(proto.PackageKey).(proto.Package)
-		protoPackages[r.Name()] = pkg
-		for name, info := range pkg.Files {
-			protoFileInfo[name] = info
-		}
-		protoRuleNames = append(protoRuleNames, r.Name())
 	}
 	sort.Strings(protoRuleNames)
+	sort.Strings(thriftRuleNames)
 	var emptyProtoRuleNames []string
+	var emptyThriftRuleNames []string
 	for _, r := range args.OtherEmpty {
-		if r.Kind() == "proto_library" {
+		switch r.Kind() {
+		case "proto_library":
 			emptyProtoRuleNames = append(emptyProtoRuleNames, r.Name())
+		case "thrift_library":
+			emptyThriftRuleNames = append(emptyThriftRuleNames, r.Name())
+		default:
 		}
 	}
 
@@ -167,6 +182,18 @@ func (gl *goLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 		// In proto package mode, don't generate a go_library embedding a
 		// go_proto_library unless there are actually go files.
 		protoEmbed = ""
+	}
+
+	// Generate go_thrift_library rules
+	for _, name := range thriftRuleNames {
+		tFile := thriftFileInfo[name]
+		pkgPrefix := goThriftPkgPrefix(gc, tFile, args.Rel)
+		rs := g.generateThrift(tcMode, tFile, pkgPrefix)
+		rules = append(rules, rs...)
+	}
+	for _, name := range emptyThriftRuleNames {
+		goThriftName := strings.TrimSuffix(name, "_thrift") + "_go_thrift"
+		res.Empty = append(res.Empty, rule.NewRule("go_thrift_library", goThriftName))
 	}
 
 	// Complete the Go package and generate rules for that.
@@ -415,13 +442,67 @@ func (g *generator) generateProto(mode proto.Mode, target protoTarget, importPat
 	goProtoLibrary.SetAttr("proto", ":"+protoName)
 	g.setImportAttrs(goProtoLibrary, importPath)
 	if target.hasServices {
-		goProtoLibrary.SetAttr("compilers", []string{"@io_bazel_rules_go//proto:go_grpc"})
+		goProtoLibrary.SetAttr("compilers", []string{"@io_bazel_rules_go//proto:gogoslick_grpc", "//:go_yarpc"})
+	} else {
+		goProtoLibrary.SetAttr("compilers", []string{"@io_bazel_rules_go//proto:gogoslick_grpc"})
 	}
 	if g.shouldSetVisibility {
 		goProtoLibrary.SetAttr("visibility", visibility)
 	}
 	goProtoLibrary.SetPrivateAttr(config.GazelleImportsKey, target.imports.build())
 	return goProtoName, []*rule.Rule{goProtoLibrary}
+}
+
+func (g *generator) generateThrift(mode thrift.Mode, target thrift.FileInfo, pkgPrefix string) []*rule.Rule {
+	if mode == thrift.DisableMode {
+		return nil
+	}
+	thriftFileName := strings.TrimSuffix(target.Name, filepath.Ext(target.Name))
+	thriftRuleName := thrift.RuleName(thriftFileName)
+	visibility := []string{checkInternalVisibility(g.rel, "//visibility:public")}
+
+	variant := func(service, variant string, deps []string) (*rule.Rule, string) {
+		var includes platformStringsBuilder
+		for _, i := range target.Includes {
+			includes.addGenericString(i)
+		}
+		for _, i := range deps {
+			includes.addGenericString(i)
+		}
+		imports := includes.build()
+		ruleName := strings.TrimSuffix(thriftRuleName, "_thrift") + "_go_thrift"
+		pkg := thriftFileName
+		if variant != "" {
+			pkg = path.Join(pkg, service+variant)
+			ruleName = ruleName + "_" + service + "_" + variant
+		}
+		importPath := path.Join(pkgPrefix, pkg)
+		l := rule.NewRule("go_thrift_library", ruleName)
+		l.SetAttr("thrift", ":"+thriftRuleName)
+		l.SetAttr("package", pkg)
+		if variant == "" {
+			l.SetAttr("thriftid", target.RelPath)
+		}
+		g.setImportAttrs(l, importPath)
+		if g.shouldSetVisibility {
+			l.SetAttr("visibility", visibility)
+		}
+		l.SetPrivateAttr(config.GazelleImportsKey, imports)
+		return l, importPath
+	}
+
+	base, baseImport := variant("", "", nil)
+	rules := []*rule.Rule{base}
+	for _, service := range target.Services {
+		service = strings.ToLower(service)
+		server, serverImport := variant(service, "server", []string{baseImport})
+		client, clientImport := variant(service, "client", []string{baseImport})
+		fx, _ := variant(service, "fx", []string{baseImport, serverImport, clientImport})
+		test, _ := variant(service, "test", []string{baseImport, clientImport, "github.com/golang/mock/gomock"})
+
+		rules = append(rules, server, client, fx, test)
+	}
+	return rules
 }
 
 func (g *generator) generateLib(pkg *goPackage, embed string) *rule.Rule {

@@ -81,6 +81,36 @@ var goKinds = map[string]rule.KindInfo{
 		},
 		ResolveAttrs: map[string]bool{"deps": true},
 	},
+	"go_thrift_library": {
+		MatchAttrs: []string{"importpath"},
+		NonEmptyAttrs: map[string]bool{
+			"thrift":  true,
+			"package": true,
+			"deps":    true,
+		},
+		SubstituteAttrs: map[string]bool{"thrift": true},
+		MergeableAttrs: map[string]bool{
+			"importpath": true,
+			"thrift":     true,
+			"package":    true,
+		},
+		ResolveAttrs: map[string]bool{"deps": true},
+	},
+	"go_apache_thrift_library": {
+		MatchAttrs: []string{"importpath"},
+		NonEmptyAttrs: map[string]bool{
+			"thrift":  true,
+			"package": true,
+			"deps":    true,
+		},
+		SubstituteAttrs: map[string]bool{"thrift": true},
+		MergeableAttrs: map[string]bool{
+			"importpath": true,
+			"thrift":     true,
+			"package":    true,
+		},
+		ResolveAttrs: map[string]bool{"deps": true},
+	},
 	"go_repository": {
 		MatchAttrs:    []string{"importpath"},
 		NonEmptyAttrs: nil, // never empty
@@ -129,6 +159,12 @@ var goLoads = []rule.LoadInfo{
 		Symbols: []string{
 			"go_grpc_library",
 			"go_proto_library",
+		},
+	}, {
+		Name: "//tools/codegen:thriftgen.bzl",
+		Symbols: []string{
+			"go_thrift_library",
+			"go_apache_thrift_library",
 		},
 	}, {
 		Name: "@bazel_gazelle//:deps.bzl",

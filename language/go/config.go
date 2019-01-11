@@ -26,6 +26,7 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/config"
 	gzflag "github.com/bazelbuild/bazel-gazelle/flag"
 	"github.com/bazelbuild/bazel-gazelle/language/proto"
+	"github.com/bazelbuild/bazel-gazelle/language/thrift"
 	"github.com/bazelbuild/bazel-gazelle/rule"
 	bzl "github.com/bazelbuild/buildtools/build"
 )
@@ -110,6 +111,14 @@ func getProtoMode(c *config.Config) proto.Mode {
 		return pc.Mode
 	} else {
 		return proto.DisableGlobalMode
+	}
+}
+
+func getThriftMode(c *config.Config) thrift.Mode {
+	if tc := thrift.GetThriftConfig(c); tc != nil {
+		return tc.Mode
+	} else {
+		return thrift.DisableMode
 	}
 }
 

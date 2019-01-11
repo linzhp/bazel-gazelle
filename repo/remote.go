@@ -143,6 +143,7 @@ func NewRemoteCache(knownRepos []Repo) *RemoteCache {
 }
 
 var gopkginPattern = regexp.MustCompile("^(gopkg.in/(?:[^/]+/)?[^/]+\\.v\\d+)(?:/|$)")
+var uberinternalPattern = regexp.MustCompile(`^(code.uber.internal/(?:[-\w]+.git|[-\w]+/[-\w.]+))`)
 
 var knownPrefixes = []struct {
 	prefix  string
@@ -204,6 +205,12 @@ func (r *RemoteCache) Root(importPath string) (root, name string, err error) {
 	// gopkg.in is special, and might have either one or two levels of
 	// missing paths. See http://labix.org/gopkg.in for URL patterns.
 	if match := gopkginPattern.FindStringSubmatch(importPath); len(match) > 0 {
+		root = match[1]
+		name = label.ImportPathToBazelRepoName(root)
+		return root, name, nil
+	}
+
+	if match := uberinternalPattern.FindStringSubmatch(importPath); len(match) > 0 {
 		root = match[1]
 		name = label.ImportPathToBazelRepoName(root)
 		return root, name, nil

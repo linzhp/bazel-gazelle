@@ -31,7 +31,7 @@ import (
 )
 
 func (_ *protoLang) Imports(c *config.Config, r *rule.Rule, f *rule.File) []resolve.ImportSpec {
-	rel := f.Pkg
+	rel := strings.TrimPrefix(f.Pkg, "idl/code.uber.internal/")
 	srcs := r.AttrStrings("srcs")
 	imports := make([]resolve.ImportSpec, len(srcs))
 	for i, src := range srcs {

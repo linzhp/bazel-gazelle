@@ -1,0 +1,24 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "config.go",
+        "constants.go",
+        "fileinfo.go",
+        "generate.go",
+        "kinds.go",
+        "lang.go",
+        "resolve.go",
+    ],
+    importpath = "github.com/bazelbuild/bazel-gazelle/language/thrift",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//config:go_default_library",
+        "//label:go_default_library",
+        "//language:go_default_library",
+        "//repo:go_default_library",
+        "//resolve:go_default_library",
+        "//rule:go_default_library",
+    ],
+)

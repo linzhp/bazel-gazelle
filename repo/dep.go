@@ -29,7 +29,7 @@ type depLockFile struct {
 type depProject struct {
 	Name     string `toml:"name"`
 	Revision string `toml:"revision"`
-	Source   string `toml:"source"`
+	Source   string `toml:"sourceUrl"`
 }
 
 func importRepoRulesDep(filename string) ([]Repo, error) {

@@ -24,6 +24,7 @@ import (
 
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/language/proto"
+	"github.com/bazelbuild/bazel-gazelle/language/thrift"
 	"github.com/bazelbuild/bazel-gazelle/rule"
 )
 
@@ -200,6 +201,10 @@ func goProtoImportPath(gc *goConfig, pkg proto.Package, rel string) string {
 		}
 	}
 	return inferImportPath(gc, rel)
+}
+
+func goThriftPkgPrefix(gc *goConfig, _ thrift.FileInfo, rel string) string {
+	return strings.Replace(inferImportPath(gc, rel), "gogoproto", "thriftrw", 1)
 }
 
 func (t *goTarget) addFile(c *config.Config, info fileInfo) {

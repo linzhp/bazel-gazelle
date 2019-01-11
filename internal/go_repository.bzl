@@ -115,6 +115,9 @@ def _go_repository_impl(ctx):
                 ctx.attr.importpath,
                 result.stderr,
             ))
+        elif result.stderr != "":
+            print("WARN: While running" +  " ".join(cmd) + "\n")
+            print("WARN: " +  result.stderr + "\n")
 
     # Apply patches if necessary.
     patch(ctx)

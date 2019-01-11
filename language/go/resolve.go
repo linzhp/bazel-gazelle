@@ -35,11 +35,14 @@ func (_ *goLang) Imports(_ *config.Config, r *rule.Rule, f *rule.File) []resolve
 	if !isGoLibrary(r.Kind()) {
 		return nil
 	}
-	if importPath := r.AttrString("importpath"); importPath == "" {
-		return []resolve.ImportSpec{}
-	} else {
-		return []resolve.ImportSpec{{goName, importPath}}
+	var specs []resolve.ImportSpec
+	if importPath := r.AttrString("importpath"); importPath != "" {
+		specs = append(specs, resolve.ImportSpec{goName, importPath})
 	}
+	if tId := r.AttrString("thriftid"); tId != "" {
+		specs = append(specs, resolve.ImportSpec{"thrift", tId})
+	}
+	return specs
 }
 
 func (_ *goLang) Embeds(r *rule.Rule, from label.Label) []label.Label {
@@ -66,12 +69,15 @@ func (gl *goLang) Resolve(c *config.Config, ix *resolve.RuleIndex, rc *repo.Remo
 	}
 	imports := importsRaw.(rule.PlatformStrings)
 	r.DelAttr("deps")
-	resolve := resolveGo
-	if r.Kind() == "go_proto_library" {
-		resolve = resolveProto
-	}
 	deps, errs := imports.Map(func(imp string) (string, error) {
+		resolve := resolveGo
+		if strings.HasSuffix(imp, ".proto") {
+			resolve = resolveProto
+		} else if strings.HasSuffix(imp, ".thrift") {
+			resolve = resolveThrift
+		}
 		l, err := resolve(c, ix, rc, r, imp, from)
+		// fmt.Println(imp, resolve, err, l)
 		if err == skipImportError {
 			return "", nil
 		} else if err != nil {
@@ -297,6 +303,27 @@ func resolveProto(c *config.Config, ix *resolve.RuleIndex, rc *repo.RemoteCache,
 	return label.New("", rel, defaultLibName), nil
 }
 
+func resolveThrift(c *config.Config, ix *resolve.RuleIndex, rc *repo.RemoteCache, r *rule.Rule, imp string, from label.Label) (label.Label, error) {
+	if l, ok := resolve.FindRuleWithOverride(c, resolve.ImportSpec{Lang: "thrift", Imp: imp}, "go"); ok {
+		return l, nil
+	}
+
+	if l, err := resolveWithIndexThrift(ix, imp, from); err == nil || err == skipImportError {
+		return l, err
+	} else if err != notFoundError {
+		return label.NoLabel, err
+	}
+
+	rel := path.Dir(imp)
+	if rel == "." {
+		rel = ""
+	}
+	if from.Pkg == "vendor" || strings.HasPrefix(from.Pkg, "vendor/") {
+		rel = path.Join("vendor", rel)
+	}
+	return label.New("", rel, defaultLibName), nil
+}
+
 // wellKnownProtos is the set of proto sets for which we don't need to add
 // an explicit dependency in go_proto_library.
 // TODO(jayconrod): generate from
@@ -330,10 +357,28 @@ func resolveWithIndexProto(ix *resolve.RuleIndex, imp string, from label.Label) 
 	return matches[0].Label, nil
 }
 
+func resolveWithIndexThrift(ix *resolve.RuleIndex, imp string, from label.Label) (label.Label, error) {
+	matches := ix.FindRulesByImport(resolve.ImportSpec{Lang: "thrift", Imp: imp}, "go")
+	if len(matches) == 0 {
+		return label.NoLabel, notFoundError
+	}
+	if len(matches) > 1 {
+		return label.NoLabel, fmt.Errorf("multiple rules (%s and %s) may be imported with %q from %s", matches[0].Label, matches[1].Label, imp, from)
+	}
+	if matches[0].IsSelfImport(from) {
+		return label.NoLabel, skipImportError
+	}
+	return matches[0].Label, nil
+}
+
 func isGoLibrary(kind string) bool {
-	return kind == "go_library" || isGoProtoLibrary(kind)
+	return kind == "go_library" || isGoProtoLibrary(kind) || isGoThriftLibrary(kind)
 }
 
 func isGoProtoLibrary(kind string) bool {
 	return kind == "go_proto_library" || kind == "go_grpc_library"
+}
+
+func isGoThriftLibrary(kind string) bool {
+	return kind == "go_thrift_library" || kind == "go_apache_thrift_library"
 }
