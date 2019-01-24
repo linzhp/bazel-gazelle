@@ -46,6 +46,13 @@ type ProtoConfig struct {
 	// groupOption is an option name that Gazelle will use to group .proto
 	// files into proto_library rules. If unset, the proto package name is used.
 	groupOption string
+
+	// StripImportPrefix The prefix to strip from the paths of the .proto files.
+	// When set, .proto source files in the srcs attribute of the rule are accessible
+	// at their path with this prefix cut off. If it's a relative path, it's taken as
+	// a package-relative one. If it's absolute, it's understood as a
+	// repository-relative path.
+	StripImportPrefix string
 }
 
 // GetProtoConfig returns the proto language configuration. If the proto
@@ -174,6 +181,7 @@ func (_ *protoLang) RegisterFlags(fs *flag.FlagSet, cmd string, c *config.Config
 	// this is set for compatibility with older versions.
 	fs.Var(&modeFlag{&pc.Mode}, "proto", "default: generates a proto_library rule for one package\n\tpackage: generates a proto_library rule for for each package\n\tdisable: does not touch proto rules\n\tdisable_global: does not touch proto rules and does not use special cases for protos in dependency resolution")
 	fs.StringVar(&pc.groupOption, "proto_group", "", "option name used to group .proto files into proto_library rules")
+	fs.StringVar(&pc.StripImportPrefix, "proto_strip_import_prefix", "", "When set, .proto source files in the srcs attribute of the rule are accessible at their path with this prefix cut off.")
 }
 
 func (_ *protoLang) CheckFlags(fs *flag.FlagSet, c *config.Config) error {
@@ -181,7 +189,7 @@ func (_ *protoLang) CheckFlags(fs *flag.FlagSet, c *config.Config) error {
 }
 
 func (_ *protoLang) KnownDirectives() []string {
-	return []string{"proto", "proto_group"}
+	return []string{"proto", "proto_group", "proto_strip_import_prefix"}
 }
 
 func (_ *protoLang) Configure(c *config.Config, rel string, f *rule.File) {
@@ -201,6 +209,8 @@ func (_ *protoLang) Configure(c *config.Config, rel string, f *rule.File) {
 				pc.ModeExplicit = true
 			case "proto_group":
 				pc.groupOption = d.Value
+			case "proto_strip_import_prefix":
+				pc.StripImportPrefix = d.Value
 			}
 		}
 	}

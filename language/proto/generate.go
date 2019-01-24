@@ -220,6 +220,9 @@ func generateProto(pc *ProtoConfig, rel string, pkg *Package, shouldSetVisibilit
 		vis := checkInternalVisibility(rel, "//visibility:public")
 		r.SetAttr("visibility", []string{vis})
 	}
+	if pc.StripImportPrefix != "" {
+		r.SetAttr("strip_import_prefix", pc.StripImportPrefix)
+	}
 	return r
 }
 
