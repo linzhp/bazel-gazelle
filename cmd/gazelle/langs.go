@@ -24,6 +24,6 @@ import (
 
 var languages = []language.Language{
 	proto.NewLanguage(),
-	thrift.New(),
+	thrift.NewLanguage(),
 	golang.NewLanguage(),
 }

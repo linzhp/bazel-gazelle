@@ -14,7 +14,7 @@ type thriftLang struct{}
 
 func (_ *thriftLang) Name() string { return thriftName }
 
-func New() language.Language {
+func NewLanguage() language.Language {
 	return &thriftLang{}
 }
 
