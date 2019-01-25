@@ -42,6 +42,7 @@ gazelle_binary = _gazelle_binary
 
 DEFAULT_LANGUAGES = [
     "@bazel_gazelle//language/proto:go_default_library",
+    "@bazel_gazelle//language/thrift:go_default_library",
     "@bazel_gazelle//language/go:go_default_library",
 ]
 
